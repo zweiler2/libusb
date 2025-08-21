@@ -3,6 +3,13 @@
     .version = "1.0.26",
     .fingerprint = 0x3e6dc4ccc24f924d, // Changing this has security and trust implications.
     .minimum_zig_version = "0.15.1",
+    .dependencies = .{
+        .xcode_frameworks = .{
+            .url = "git+https://github.com/hexops/xcode-frameworks#8a1cfb373587ea4c9bb1468b7c986462d8d4e10e",
+            .hash = "N-V-__8AALShqgXkvqYU6f__FrA22SMWmi2TXCJjNTO1m8XJ",
+            .lazy = true,
+        },
+    },
     .paths = .{
         "README",
         "COPYING",

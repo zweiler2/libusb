@@ -59,6 +59,13 @@ fn create_libusb(
         lib.linkFramework("CoreFoundation");
         lib.linkFramework("IOKit");
         lib.linkFramework("Security");
+        // TODO: update xcode_frameworks to include IOKit/usb/IOUSBLib.h
+        // Include xcode_frameworks for cross compilation
+        if (b.lazyDependency("xcode_frameworks", .{})) |dep| {
+            lib.addSystemFrameworkPath(dep.path("Frameworks"));
+            lib.addSystemIncludePath(dep.path("include"));
+            lib.addLibraryPath(dep.path("lib"));
+        }
     } else if (target.result.os.tag == .linux) {
         lib.addCSourceFiles(.{ .files = linux_src });
         if (system_libudev) {
