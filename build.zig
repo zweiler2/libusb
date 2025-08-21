@@ -36,22 +36,25 @@ fn create_libusb(
     system_libudev: bool,
 ) *Build.Step.Compile {
     const is_posix =
-        target.result.isDarwin() or
+        target.result.os.tag.isDarwin() or
         target.result.os.tag == .linux or
         target.result.os.tag == .openbsd;
 
-    const lib = b.addStaticLibrary(.{
+    const lib = b.addLibrary(.{
         .name = "usb",
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+        .linkage = .static,
     });
     lib.addCSourceFiles(.{ .files = src });
 
     if (is_posix)
         lib.addCSourceFiles(.{ .files = posix_platform_src });
 
-    if (target.result.isDarwin()) {
+    if (target.result.os.tag.isDarwin()) {
         lib.addCSourceFiles(.{ .files = darwin_src });
         lib.linkFramework("CoreFoundation");
         lib.linkFramework("IOKit");
@@ -79,7 +82,7 @@ fn create_libusb(
     lib.installHeader(b.path("libusb/libusb.h"), "libusb.h");
 
     // config header
-    if (target.result.isDarwin()) {
+    if (target.result.os.tag.isDarwin()) {
         lib.addIncludePath(b.path("Xcode"));
     } else if (target.result.abi == .msvc) {
         lib.addIncludePath(b.path("msvc"));
@@ -87,7 +90,7 @@ fn create_libusb(
         lib.addIncludePath(b.path("android"));
     } else {
         const config_h = b.addConfigHeader(.{ .style = .{
-            .autoconf = b.path("config.h.in"),
+            .autoconf_undef = b.path("config.h.in"),
         } }, .{
             .DEFAULT_VISIBILITY = .@"__attribute__ ((visibility (\"default\")))",
             .ENABLE_DEBUG_LOGGING = define_from_bool(optimize == .Debug),
@@ -101,7 +104,7 @@ fn create_libusb(
             .HAVE_DLFCN_H = null,
             .HAVE_EVENTFD = null,
             .HAVE_INTTYPES_H = null,
-            .HAVE_IOKIT_USB_IOUSBHOSTFAMILYDEFINITIONS_H = define_from_bool(target.result.isDarwin()),
+            .HAVE_IOKIT_USB_IOUSBHOSTFAMILYDEFINITIONS_H = define_from_bool(target.result.os.tag.isDarwin()),
             .HAVE_LIBUDEV = define_from_bool(system_libudev),
             .HAVE_NFDS_T = null,
             .HAVE_PIPE2 = null,
