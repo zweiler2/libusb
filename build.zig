@@ -10,7 +10,7 @@ fn define_from_bool(val: bool) ?u1 {
     return if (val) 1 else null;
 }
 
-pub fn build(b: *Build) void {
+pub fn build(b: *Build) !void {
     const optimize = b.standardOptimizeOption(.{});
     const target = b.standardTargetOptions(.{});
     const system_libudev = b.option(
@@ -19,12 +19,17 @@ pub fn build(b: *Build) void {
         "link with system libudev on linux",
     ) orelse false;
 
-    const libusb = create_libusb(b, target, optimize, system_libudev);
+    const android_ndk_home = std.process.getEnvVarOwned(b.allocator, "ANDROID_NDK_HOME") catch "";
+    defer b.allocator.free(android_ndk_home);
+    const android_ndk_path: []const u8 = b.option([]const u8, "android_ndk_path", "specify path to android ndk") orelse android_ndk_home;
+    const android_api_level: []const u8 = b.option([]const u8, "android_api_level", "specify android api level") orelse "35";
+
+    const libusb = try create_libusb(b, target, optimize, system_libudev, android_ndk_path, android_api_level);
     b.installArtifact(libusb);
 
     const build_all = b.step("all", "build libusb for all targets");
     for (targets(b)) |t| {
-        const lib = create_libusb(b, t, optimize, system_libudev);
+        const lib = try create_libusb(b, t, optimize, system_libudev, android_ndk_path, android_api_level);
         build_all.dependOn(&lib.step);
     }
 }
@@ -34,7 +39,9 @@ fn create_libusb(
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
     system_libudev: bool,
-) *Build.Step.Compile {
+    android_ndk_path: []const u8,
+    android_api_level: []const u8,
+) !*Build.Step.Compile {
     const is_posix =
         target.result.os.tag.isDarwin() or
         target.result.os.tag == .linux or
@@ -51,6 +58,9 @@ fn create_libusb(
     });
     lib.root_module.addCSourceFiles(.{ .files = src });
 
+    if (target.result.abi.isAndroid())
+        try setupAndroid(b, lib, target, android_ndk_path, android_api_level);
+
     if (is_posix)
         lib.root_module.addCSourceFiles(.{ .files = posix_platform_src });
 
@@ -66,6 +76,8 @@ fn create_libusb(
             lib.root_module.addSystemIncludePath(dep.path("include"));
             lib.root_module.addLibraryPath(dep.path("lib"));
         }
+    } else if (target.result.abi.isAndroid()) {
+        lib.root_module.addCSourceFiles(.{ .files = android_src });
     } else if (target.result.os.tag == .linux) {
         lib.root_module.addCSourceFiles(.{ .files = linux_src });
         if (system_libudev) {
@@ -93,7 +105,7 @@ fn create_libusb(
         lib.root_module.addIncludePath(b.path("Xcode"));
     } else if (target.result.abi == .msvc) {
         lib.root_module.addIncludePath(b.path("msvc"));
-    } else if (target.result.abi == .android) {
+    } else if (target.result.abi.isAndroid()) {
         lib.root_module.addIncludePath(b.path("android"));
     } else {
         const config_h = b.addConfigHeader(.{ .style = .{
@@ -191,6 +203,11 @@ const linux_udev_src: []const []const u8 = &.{
     "libusb/os/linux_udev.c",
 };
 
+const android_src: []const []const u8 = &.{
+    "libusb/os/linux_netlink.c",
+    "libusb/os/linux_usbfs.c",
+};
+
 const netbsd_src: []const []const u8 = &.{
     "libusb/os/netbsd_usb.c",
 };
@@ -239,4 +256,50 @@ pub fn targets(b: *Build) [17]std.Build.ResolvedTarget {
     };
 }
 // zig fmt: on
+
+fn setupAndroid(b: *Build, lib: *Build.Step.Compile, target: std.Build.ResolvedTarget, android_ndk_path: []const u8, android_api_level: []const u8) !void {
+    //these are the only tag options per https://developer.android.com/ndk/guides/other_build_systems
+    const host_tuple = switch (@import("builtin").target.os.tag) {
+        .linux => "linux-x86_64",
+        .windows => "windows-x86_64",
+        .macos => "darwin-x86_64",
+        else => {
+            @panic("unsupported host OS");
+        },
+    };
+
+    const android_triple: []u8 = try target.result.linuxTriple(b.allocator);
+
+    const android_sysroot: []u8 = try std.fs.path.join(b.allocator, &.{ android_ndk_path, "/toolchains/llvm/prebuilt/", host_tuple, "/sysroot" });
+    const android_lib_path: []u8 = try std.fs.path.join(b.allocator, &.{ android_sysroot, "/usr/lib/", android_triple });
+    const android_api_specific_path: []u8 = try std.fs.path.join(b.allocator, &.{ android_lib_path, android_api_level });
+    const android_include_path: []u8 = try std.fs.path.join(b.allocator, &.{ android_sysroot, "/usr/include" });
+    const android_arch_include_path: []u8 = try std.fs.path.join(b.allocator, &.{ android_include_path, android_triple });
+    const android_asm_path: []u8 = try std.fs.path.join(b.allocator, &.{ android_include_path, "/asm-generic" });
+    const android_glue_path: []u8 = try std.fs.path.join(b.allocator, &.{ android_ndk_path, "/sources/android/native_app_glue" });
+
+    lib.root_module.addLibraryPath(.{ .cwd_relative = android_api_specific_path });
+    lib.addLibraryPath(.{ .cwd_relative = android_lib_path });
+    lib.addSystemIncludePath(.{ .cwd_relative = android_include_path });
+    lib.addSystemIncludePath(.{ .cwd_relative = android_arch_include_path });
+    lib.addSystemIncludePath(.{ .cwd_relative = android_asm_path });
+    lib.addSystemIncludePath(.{ .cwd_relative = android_glue_path });
+
+    const androidNativeAppGlueFile = try std.fs.path.join(b.allocator, &.{ android_glue_path, "/android_native_app_glue.c" });
+
+    lib.addCSourceFile(.{
+        .file = std.Build.LazyPath{ .cwd_relative = androidNativeAppGlueFile },
+    });
+
+    var allocating_writer: std.io.Writer.Allocating = .init(b.allocator);
+    defer allocating_writer.deinit();
+    try (std.zig.LibCInstallation{
+        .include_dir = android_include_path,
+        .sys_include_dir = android_include_path,
+        .crt_dir = android_api_specific_path,
+    }).render(&allocating_writer.writer);
+    const libc_data: []u8 = try allocating_writer.toOwnedSlice();
+    defer b.allocator.free(libc_data);
+    const libcFile: Build.LazyPath = b.addWriteFiles().add("android-libc.txt", libc_data);
+    lib.setLibCFile(libcFile);
 }
