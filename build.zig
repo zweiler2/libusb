@@ -216,26 +216,27 @@ const windows_src: []const []const u8 = &.{
     "libusb/os/windows_winusb.c",
 };
 
+// zig fmt: off
 pub fn targets(b: *Build) [17]std.Build.ResolvedTarget {
     return [_]std.Build.ResolvedTarget{
-        // zig fmt: off
         b.resolveTargetQuery(.{}),
-        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .x86_64,    .abi = .musl        }),
-        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .x86_64,    .abi = .gnu         }),
-        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .aarch64,   .abi = .musl        }),
-        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .aarch64,   .abi = .gnu         }),
-        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .arm,       .abi = .musleabi    }),
-        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .arm,       .abi = .musleabihf  }),
-        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .arm,       .abi = .gnueabi     }),
-        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .arm,       .abi = .gnueabihf   }),
-        b.resolveTargetQuery(.{ .os_tag = .macos,   .cpu_arch = .aarch64                        }),
-        b.resolveTargetQuery(.{ .os_tag = .macos,   .cpu_arch = .x86_64                         }),
-        b.resolveTargetQuery(.{ .os_tag = .windows, .cpu_arch = .aarch64                        }),
-        b.resolveTargetQuery(.{ .os_tag = .windows, .cpu_arch = .x86_64                         }),
-        b.resolveTargetQuery(.{ .os_tag = .netbsd,  .cpu_arch = .x86_64                         }),
-        b.resolveTargetQuery(.{ .os_tag = .openbsd, .cpu_arch = .x86_64                         }),
-        b.resolveTargetQuery(.{ .os_tag = .haiku,   .cpu_arch = .x86_64                         }),
-        b.resolveTargetQuery(.{ .os_tag = .solaris, .cpu_arch = .x86_64                         }),
-        //zig fmt: on
+        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .x86_64,  .abi = .musl       }),
+        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .x86_64,  .abi = .gnu        }),
+        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .aarch64, .abi = .musl       }),
+        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .aarch64, .abi = .gnu        }),
+        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .arm,     .abi = .musleabi   }),
+        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .arm,     .abi = .musleabihf }),
+        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .arm,     .abi = .gnueabi    }),
+        b.resolveTargetQuery(.{ .os_tag = .linux,   .cpu_arch = .arm,     .abi = .gnueabihf  }),
+        b.resolveTargetQuery(.{ .os_tag = .macos,   .cpu_arch = .aarch64                     }),
+        b.resolveTargetQuery(.{ .os_tag = .macos,   .cpu_arch = .x86_64                      }),
+        b.resolveTargetQuery(.{ .os_tag = .windows, .cpu_arch = .aarch64                     }),
+        b.resolveTargetQuery(.{ .os_tag = .windows, .cpu_arch = .x86_64                      }),
+        b.resolveTargetQuery(.{ .os_tag = .netbsd,  .cpu_arch = .x86_64                      }),
+        b.resolveTargetQuery(.{ .os_tag = .openbsd, .cpu_arch = .x86_64                      }),
+        b.resolveTargetQuery(.{ .os_tag = .haiku,   .cpu_arch = .x86_64                      }),
+        b.resolveTargetQuery(.{ .os_tag = .solaris, .cpu_arch = .x86_64                      }),
     };
+}
+// zig fmt: on
 }
