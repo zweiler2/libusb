@@ -1,6 +1,6 @@
 .{
     .name = .libusb,
-    .version = "1.0.26",
+    .version = "1.0.29",
     .fingerprint = 0x3e6dc4ccc24f924d, // Changing this has security and trust implications.
     .minimum_zig_version = "0.15.1",
     .dependencies = .{
