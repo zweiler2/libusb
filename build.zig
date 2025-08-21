@@ -17,7 +17,7 @@ pub fn build(b: *Build) void {
         bool,
         "system-libudev",
         "link with system libudev on linux",
-    ) orelse true;
+    ) orelse false;
 
     const libusb = create_libusb(b, target, optimize, system_libudev);
     b.installArtifact(libusb);
