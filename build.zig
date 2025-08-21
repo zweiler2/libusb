@@ -277,18 +277,17 @@ fn setupAndroid(b: *Build, lib: *Build.Step.Compile, target: std.Build.ResolvedT
     const android_arch_include_path: []u8 = try std.fs.path.join(b.allocator, &.{ android_include_path, android_triple });
     const android_asm_path: []u8 = try std.fs.path.join(b.allocator, &.{ android_include_path, "/asm-generic" });
     const android_glue_path: []u8 = try std.fs.path.join(b.allocator, &.{ android_ndk_path, "/sources/android/native_app_glue" });
+    const android_native_app_glue_file = try std.fs.path.join(b.allocator, &.{ android_glue_path, "/android_native_app_glue.c" });
 
     lib.root_module.addLibraryPath(.{ .cwd_relative = android_api_specific_path });
-    lib.addLibraryPath(.{ .cwd_relative = android_lib_path });
-    lib.addSystemIncludePath(.{ .cwd_relative = android_include_path });
-    lib.addSystemIncludePath(.{ .cwd_relative = android_arch_include_path });
-    lib.addSystemIncludePath(.{ .cwd_relative = android_asm_path });
-    lib.addSystemIncludePath(.{ .cwd_relative = android_glue_path });
+    lib.root_module.addLibraryPath(.{ .cwd_relative = android_lib_path });
+    lib.root_module.addSystemIncludePath(.{ .cwd_relative = android_include_path });
+    lib.root_module.addSystemIncludePath(.{ .cwd_relative = android_arch_include_path });
+    lib.root_module.addSystemIncludePath(.{ .cwd_relative = android_asm_path });
+    lib.root_module.addSystemIncludePath(.{ .cwd_relative = android_glue_path });
 
-    const androidNativeAppGlueFile = try std.fs.path.join(b.allocator, &.{ android_glue_path, "/android_native_app_glue.c" });
-
-    lib.addCSourceFile(.{
-        .file = std.Build.LazyPath{ .cwd_relative = androidNativeAppGlueFile },
+    lib.root_module.addCSourceFile(.{
+        .file = std.Build.LazyPath{ .cwd_relative = android_native_app_glue_file },
     });
 
     var allocating_writer: std.io.Writer.Allocating = .init(b.allocator);
