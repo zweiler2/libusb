@@ -49,52 +49,52 @@ fn create_libusb(
         }),
         .linkage = .static,
     });
-    lib.addCSourceFiles(.{ .files = src });
+    lib.root_module.addCSourceFiles(.{ .files = src });
 
     if (is_posix)
-        lib.addCSourceFiles(.{ .files = posix_platform_src });
+        lib.root_module.addCSourceFiles(.{ .files = posix_platform_src });
 
     if (target.result.os.tag.isDarwin()) {
-        lib.addCSourceFiles(.{ .files = darwin_src });
-        lib.linkFramework("CoreFoundation");
-        lib.linkFramework("IOKit");
-        lib.linkFramework("Security");
+        lib.root_module.addCSourceFiles(.{ .files = darwin_src });
+        lib.root_module.linkFramework("CoreFoundation", .{});
+        lib.root_module.linkFramework("IOKit", .{});
+        lib.root_module.linkFramework("Security", .{});
         // TODO: update xcode_frameworks to include IOKit/usb/IOUSBLib.h
         // Include xcode_frameworks for cross compilation
         if (b.lazyDependency("xcode_frameworks", .{})) |dep| {
-            lib.addSystemFrameworkPath(dep.path("Frameworks"));
-            lib.addSystemIncludePath(dep.path("include"));
-            lib.addLibraryPath(dep.path("lib"));
+            lib.root_module.addSystemFrameworkPath(dep.path("Frameworks"));
+            lib.root_module.addSystemIncludePath(dep.path("include"));
+            lib.root_module.addLibraryPath(dep.path("lib"));
         }
     } else if (target.result.os.tag == .linux) {
-        lib.addCSourceFiles(.{ .files = linux_src });
+        lib.root_module.addCSourceFiles(.{ .files = linux_src });
         if (system_libudev) {
-            lib.addCSourceFiles(.{ .files = linux_udev_src });
-            lib.linkSystemLibrary("udev");
+            lib.root_module.addCSourceFiles(.{ .files = linux_udev_src });
+            lib.root_module.linkSystemLibrary("udev", .{});
         }
     } else if (target.result.os.tag == .windows) {
-        lib.addCSourceFiles(.{ .files = windows_src });
-        lib.addCSourceFiles(.{ .files = windows_platform_src });
+        lib.root_module.addCSourceFiles(.{ .files = windows_src });
+        lib.root_module.addCSourceFiles(.{ .files = windows_platform_src });
     } else if (target.result.os.tag == .netbsd) {
-        lib.addCSourceFiles(.{ .files = netbsd_src });
+        lib.root_module.addCSourceFiles(.{ .files = netbsd_src });
     } else if (target.result.os.tag == .openbsd) {
-        lib.addCSourceFiles(.{ .files = openbsd_src });
+        lib.root_module.addCSourceFiles(.{ .files = openbsd_src });
     } else if (target.result.os.tag == .haiku) {
-        lib.addCSourceFiles(.{ .files = haiku_src });
+        lib.root_module.addCSourceFiles(.{ .files = haiku_src });
     } else if (target.result.os.tag == .solaris) {
-        lib.addCSourceFiles(.{ .files = sunos_src });
+        lib.root_module.addCSourceFiles(.{ .files = sunos_src });
     } else unreachable;
 
-    lib.addIncludePath(b.path("libusb"));
+    lib.root_module.addIncludePath(b.path("libusb"));
     lib.installHeader(b.path("libusb/libusb.h"), "libusb.h");
 
     // config header
     if (target.result.os.tag.isDarwin()) {
-        lib.addIncludePath(b.path("Xcode"));
+        lib.root_module.addIncludePath(b.path("Xcode"));
     } else if (target.result.abi == .msvc) {
-        lib.addIncludePath(b.path("msvc"));
+        lib.root_module.addIncludePath(b.path("msvc"));
     } else if (target.result.abi == .android) {
-        lib.addIncludePath(b.path("android"));
+        lib.root_module.addIncludePath(b.path("android"));
     } else {
         const config_h = b.addConfigHeader(.{ .style = .{
             .autoconf_undef = b.path("config.h.in"),
@@ -148,7 +148,7 @@ fn create_libusb(
             ._WIN32_WINNT = null,
             .@"inline" = null,
         });
-        lib.addConfigHeader(config_h);
+        lib.root_module.addConfigHeader(config_h);
     }
 
     return lib;
