@@ -13,23 +13,20 @@ fn define_from_bool(val: bool) ?u1 {
 pub fn build(b: *Build) !void {
     const optimize = b.standardOptimizeOption(.{});
     const target = b.standardTargetOptions(.{});
-    const system_libudev = b.option(
-        bool,
-        "system-libudev",
-        "link with system libudev on linux",
-    ) orelse false;
+    const system_libudev = b.option(bool, "system-libudev", "link with system libudev on linux (Default: false)") orelse false;
+    const linkage = b.option(std.builtin.LinkMode, "linkage", "static vs dynamic linkage (Default: static)") orelse .static;
 
     const android_ndk_home = std.process.getEnvVarOwned(b.allocator, "ANDROID_NDK_HOME") catch "";
     defer b.allocator.free(android_ndk_home);
     const android_ndk_path: []const u8 = b.option([]const u8, "android_ndk_path", "specify path to android ndk") orelse android_ndk_home;
     const android_api_level: []const u8 = b.option([]const u8, "android_api_level", "specify android api level") orelse "35";
 
-    const libusb = try create_libusb(b, target, optimize, system_libudev, android_ndk_path, android_api_level);
+    const libusb = try create_libusb(b, target, optimize, linkage, system_libudev, android_ndk_path, android_api_level);
     b.installArtifact(libusb);
 
     const build_all = b.step("all", "build libusb for all targets");
     for (targets(b)) |t| {
-        const lib = try create_libusb(b, t, optimize, system_libudev, android_ndk_path, android_api_level);
+        const lib = try create_libusb(b, t, optimize, linkage, system_libudev, android_ndk_path, android_api_level);
         build_all.dependOn(&lib.step);
     }
 }
@@ -38,6 +35,7 @@ fn create_libusb(
     b: *Build,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
+    linkage: std.builtin.LinkMode,
     system_libudev: bool,
     android_ndk_path: []const u8,
     android_api_level: []const u8,
@@ -49,12 +47,12 @@ fn create_libusb(
 
     const lib = b.addLibrary(.{
         .name = "usb",
+        .linkage = linkage,
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
             .link_libc = true,
         }),
-        .linkage = .static,
     });
     lib.root_module.addCSourceFiles(.{ .files = src });
 
