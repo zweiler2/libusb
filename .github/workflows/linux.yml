@@ -17,6 +17,8 @@ jobs:
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.15.2
+      - name: update apt
+        run: sudo apt update -y
       - name: install libudev
         run: sudo apt install -y libudev-dev
       - name: build
