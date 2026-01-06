@@ -1,8 +1,9 @@
 name: macos
 on:
+  workflow_dispatch:
   push:
   pull_request:
-    branches: [master]
+    branches: [main]
 
 jobs:
   build:
@@ -15,6 +16,6 @@ jobs:
       - uses: actions/checkout@v2
       - uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.1
+          version: 0.15.2
       - name: build
         run: zig build
