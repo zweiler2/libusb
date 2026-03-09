@@ -16,6 +16,7 @@ pub fn build(b: *std.Build) !void {
 
     const linkage = b.option(std.builtin.LinkMode, "linkage", "static vs dynamic linkage (Default: static)") orelse .static;
     const system_libudev = b.option(bool, "use-system-libudev", "link with system libudev on linux (Default: false)") orelse false;
+    const windows_hotplug = b.option(bool, "windows-hotplug", "enable Windows hotplug support (Default: false)") orelse false;
 
     const android_ndk_home: []const u8 = std.process.getEnvVarOwned(b.allocator, "ANDROID_NDK_HOME") catch b.dupe("");
     defer b.allocator.free(android_ndk_home);
@@ -38,7 +39,7 @@ pub fn build(b: *std.Build) !void {
 
     const build_all = b.step("all", "Build libusb for all supported targets");
     for (targets(b)) |t| {
-        const lib = try createLibUsb(b, t, optimize, linkage, system_libudev, android_ndk_path, android_api_level);
+        const lib = try createLibUsb(b, t, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level);
         build_all.dependOn(&lib.step);
         const triple: []const u8 = b.fmt("{s}-{s}-{s}", .{ @tagName(t.result.cpu.arch), @tagName(t.result.os.tag), @tagName(t.result.abi) });
         const dest_dir_path: []const u8 = b.pathJoin(&[_][]const u8{ "lib", triple });
@@ -52,7 +53,7 @@ pub fn build(b: *std.Build) !void {
         build_all.dependOn(&install_artifact.step);
     }
 
-    const libusb = try createLibUsb(b, target, optimize, linkage, system_libudev, android_ndk_path, android_api_level);
+    const libusb = try createLibUsb(b, target, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level);
     b.installArtifact(libusb);
 }
 
@@ -62,6 +63,7 @@ fn createLibUsb(
     optimize: std.builtin.OptimizeMode,
     linkage: std.builtin.LinkMode,
     system_libudev: bool,
+    windows_hotplug: bool,
     android_ndk_path: []const u8,
     android_api_level: []const u8,
 ) !*std.Build.Step.Compile {
@@ -116,6 +118,9 @@ fn createLibUsb(
         addCSourceFilesFromDep(lib.root_module, upstream, sunos_src);
     } else if (target.result.os.tag == .windows) {
         addCSourceFilesFromDep(lib.root_module, upstream, windows_src);
+        if (windows_hotplug) {
+            addCSourceFilesFromDep(lib.root_module, upstream, windows_hotplug_src);
+        }
     } else if (target.result.os.tag == .netbsd) {
         addCSourceFilesFromDep(lib.root_module, upstream, netbsd_src);
     } else if (target.result.os.tag == .openbsd) {
@@ -171,6 +176,7 @@ fn createLibUsb(
             .HAVE_SYS_TYPES_H = 1,
             .HAVE_TIMERFD = defineFromBool(target.result.os.tag == .linux),
             .HAVE_UNISTD_H = 1,
+            .LIBUSB_WINDOWS_HOTPLUG = defineFromBool(windows_hotplug),
             .LT_OBJDIR = null,
             .PACKAGE = "libusb-1.0",
             .PACKAGE_BUGREPORT = "libusb-devel@lists.sourceforge.net",
@@ -361,4 +367,8 @@ const windows_src: []const []const u8 = &.{
     "libusb/os/windows_common.c",
     "libusb/os/windows_usbdk.c",
     "libusb/os/windows_winusb.c",
+};
+
+const windows_hotplug_src: []const []const u8 = &.{
+    "libusb/os/windows_hotplug.c",
 };
