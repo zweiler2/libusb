@@ -18,7 +18,12 @@ pub fn build(b: *std.Build) !void {
     const system_libudev = b.option(bool, "use-system-libudev", "link with system libudev on linux (Default: false)") orelse false;
     const windows_hotplug = b.option(bool, "windows-hotplug", "enable Windows hotplug support (Default: false)") orelse false;
 
-    const android_ndk_home: []const u8 = std.process.getEnvVarOwned(b.allocator, "ANDROID_NDK_HOME") catch b.dupe("");
+    const android_ndk_home: []const u8 =
+        if (builtin.zig_version.minor > 15)
+            b.graph.environ_map.get("ANDROID_NDK_HOME") orelse b.dupe("")
+        else
+            std.process.getEnvVarOwned(b.allocator, "ANDROID_NDK_HOME") catch b.dupe("");
+
     defer b.allocator.free(android_ndk_home);
     const android_ndk_path: []const u8 = b.option([]const u8, "android-ndk-path", "specify path to android ndk (Default: ANDROID_NDK_HOME env var)") orelse android_ndk_home;
     const android_api_level: []const u8 = b.option([]const u8, "android-api-level", "specify android api level (Default: 35)") orelse "35";
@@ -114,7 +119,7 @@ fn createLibUsb(
             addCSourceFilesFromDep(lib.root_module, upstream, linux_udev_src);
             lib.root_module.linkSystemLibrary("udev", .{});
         }
-    } else if (target.result.os.tag.isSolarish()) {
+    } else if (target.result.os.tag == .illumos) {
         addCSourceFilesFromDep(lib.root_module, upstream, sunos_src);
     } else if (target.result.os.tag == .windows) {
         addCSourceFilesFromDep(lib.root_module, upstream, windows_src);
@@ -260,7 +265,7 @@ fn setupAndroid(b: *std.Build, lib: *std.Build.Step.Compile, target: std.Build.R
         .flags = common_flags,
     });
 
-    var allocating_writer: std.io.Writer.Allocating = .init(b.allocator);
+    var allocating_writer: std.Io.Writer.Allocating = .init(b.allocator);
     defer allocating_writer.deinit();
     const libc_installation: std.zig.LibCInstallation = .{
         .include_dir = android_include_path,
