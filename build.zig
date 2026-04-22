@@ -98,6 +98,16 @@ fn createLibUsb(
         lib.root_module.addCMacro("PIC", "");
     }
 
+    if (builtin.zig_version.minor > 15) {
+        const translate_c = b.addTranslateC(.{
+            .root_source_file = b.addWriteFiles().add("translate_c.h", "#include <libusb.h>"),
+            .target = target,
+            .optimize = optimize,
+        });
+        translate_c.addIncludePath(upstream.path("libusb"));
+        _ = translate_c.addModule("libusb");
+    }
+
     addCSourceFilesFromDep(lib.root_module, upstream, src);
 
     if (is_posix) {
