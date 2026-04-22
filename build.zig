@@ -17,6 +17,7 @@ pub fn build(b: *std.Build) !void {
     const linkage = b.option(std.builtin.LinkMode, "linkage", "static vs dynamic linkage (Default: static)") orelse .static;
     const system_libudev = b.option(bool, "use-system-libudev", "link with system libudev on linux (Default: false)") orelse false;
     const windows_hotplug = b.option(bool, "windows-hotplug", "enable Windows hotplug support (Default: false)") orelse false;
+    const use_rc = b.option(bool, "use-rc", "use rc version of libusb (Default: false)") orelse false;
 
     const android_ndk_home: []const u8 =
         if (builtin.zig_version.minor > 15)
@@ -28,10 +29,15 @@ pub fn build(b: *std.Build) !void {
     const android_ndk_path: []const u8 = b.option([]const u8, "android-ndk-path", "specify path to android ndk (Default: ANDROID_NDK_HOME env var)") orelse android_ndk_home;
     const android_api_level: []const u8 = b.option([]const u8, "android-api-level", "specify android api level (Default: 35)") orelse "35";
 
+    const upstream =
+        if (use_rc)
+            b.dependency("upstream_rc", .{})
+        else
+            b.dependency("upstream", .{});
+
     const update_config_header = b.step("update-config-header", "Update the config.h.in file");
     {
         const configure_run = b.addSystemCommand(&[_][]const u8{ "autoreconf", "-fiv" });
-        const upstream = b.dependency("upstream", .{});
         configure_run.setCwd(upstream.path(""));
         const install_file = b.addInstallFileWithDir(
             upstream.path("config.h.in"),
@@ -44,7 +50,7 @@ pub fn build(b: *std.Build) !void {
 
     const build_all = b.step("all", "Build libusb for all supported targets");
     for (targets(b)) |t| {
-        const lib = try createLibUsb(b, t, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level);
+        const lib = try createLibUsb(b, t, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level, upstream);
         build_all.dependOn(&lib.step);
         const triple: []const u8 = b.fmt("{s}-{s}-{s}", .{ @tagName(t.result.cpu.arch), @tagName(t.result.os.tag), @tagName(t.result.abi) });
         const dest_dir_path: []const u8 = b.pathJoin(&[_][]const u8{ "lib", triple });
@@ -58,7 +64,7 @@ pub fn build(b: *std.Build) !void {
         build_all.dependOn(&install_artifact.step);
     }
 
-    const libusb = try createLibUsb(b, target, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level);
+    const libusb = try createLibUsb(b, target, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level, upstream);
     b.installArtifact(libusb);
 }
 
@@ -71,12 +77,11 @@ fn createLibUsb(
     windows_hotplug: bool,
     android_ndk_path: []const u8,
     android_api_level: []const u8,
+    upstream: *std.Build.Dependency,
 ) !*std.Build.Step.Compile {
     const is_posix: bool =
         target.result.os.tag.isBSD() or
         target.result.os.tag == .linux;
-
-    const upstream = b.dependency("upstream", .{});
 
     const lib = b.addLibrary(.{
         .name = "usb-1.0",
