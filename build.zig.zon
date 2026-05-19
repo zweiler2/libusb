@@ -1,12 +1,12 @@
 .{
     .name = .libusb,
-    .version = "1.0.29",
+    .version = "1.0.30",
     .fingerprint = 0x3e6dc4ccc24f924d, // Changing this has security and trust implications.
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .upstream = .{
-            .url = "https://github.com/libusb/libusb/archive/refs/tags/v1.0.29.tar.gz",
-            .hash = "N-V-__8AAGP9GgDIPMixK-_Evif-k_4WLGZihnNRcS0IheSs",
+            .url = "https://github.com/libusb/libusb/archive/refs/tags/v1.0.30.tar.gz",
+            .hash = "N-V-__8AAPiYHABnv0glu6zoTGkhikaLpjx-2pBKdChsqtW4",
         },
         .upstream_rc = .{
             .url = "https://github.com/libusb/libusb/archive/refs/tags/v1.0.30-rc1.tar.gz",
