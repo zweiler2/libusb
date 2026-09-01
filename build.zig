@@ -115,11 +115,14 @@ fn createLibUsb(
     }
 
     if (target.result.os.tag.isDarwin()) {
-        // TODO2: update xcode_frameworks to include IOKit/usb/IOUSBLib.h to enable crosscompiling
         if (b.lazyDependency("xcode_frameworks", .{})) |dep| {
             lib.root_module.addSystemFrameworkPath(dep.path("Frameworks"));
             lib.root_module.addSystemIncludePath(dep.path("include"));
             lib.root_module.addLibraryPath(dep.path("lib"));
+        }
+        if (b.lazyDependency("system_sdk", .{})) |dep| {
+            lib.root_module.addLibraryPath(dep.path("macos12/usr/lib"));
+            lib.root_module.addFrameworkPath(dep.path("macos12/System/Library/Frameworks"));
         }
         addCSourceFilesFromDep(lib.root_module, upstream, darwin_src);
         lib.root_module.linkFramework("CoreFoundation", .{});
@@ -293,7 +296,7 @@ fn setupAndroid(b: *std.Build, lib: *std.Build.Step.Compile, target: std.Build.R
 }
 
 // zig fmt: off
-fn targets(b: *std.Build) [19]std.Build.ResolvedTarget {
+fn targets(b: *std.Build) [21]std.Build.ResolvedTarget {
     return [_]std.Build.ResolvedTarget{
         b.resolveTargetQuery(.{}),
         b.resolveTargetQuery(.{ .cpu_arch = .x86_64,  .os_tag = .linux,    .abi = .musl       }),
@@ -307,8 +310,8 @@ fn targets(b: *std.Build) [19]std.Build.ResolvedTarget {
         b.resolveTargetQuery(.{ .cpu_arch = .arm,     .os_tag = .linux,    .abi = .gnueabi    }),
         b.resolveTargetQuery(.{ .cpu_arch = .arm,     .os_tag = .linux,    .abi = .gnueabihf  }),
 
-        // b.resolveTargetQuery(.{ .cpu_arch = .x86_64,  .os_tag = .macos,                       }), // TODO2: update xcode_frameworks to include IOKit/usb/IOUSBLib.h to enable crosscompiling
-        // b.resolveTargetQuery(.{ .cpu_arch = .aarch64, .os_tag = .macos,                       }), // TODO2: update xcode_frameworks to include IOKit/usb/IOUSBLib.h to enable crosscompiling
+        b.resolveTargetQuery(.{ .cpu_arch = .x86_64,  .os_tag = .macos,                       }),
+        b.resolveTargetQuery(.{ .cpu_arch = .aarch64, .os_tag = .macos,                       }),
 
         b.resolveTargetQuery(.{ .cpu_arch = .x86_64,  .os_tag = .windows,                     }),
         b.resolveTargetQuery(.{ .cpu_arch = .aarch64, .os_tag = .windows,                     }),

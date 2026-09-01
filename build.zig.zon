@@ -17,6 +17,11 @@
             .hash = "N-V-__8AADOnqgUlgd1Wb1ddIDiG1EHw03m7SlLXNpLWgejt",
             .lazy = true,
         },
+        .system_sdk = .{
+            .url = "git+https://github.com/zig-gamedev/system_sdk.git#777e76828f05d5d223df47a4c0de95ae4efde884",
+            .hash = "system_sdk-0.3.0-dev-alwUNqAaaALJ5VoZImZo3n6prezBnQnrpziun3ZeZwcp",
+            .lazy = true,
+        },
     },
     .paths = .{
         "build.zig",
