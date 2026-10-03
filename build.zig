@@ -19,11 +19,7 @@ pub fn build(b: *std.Build) !void {
     const windows_hotplug = b.option(bool, "windows-hotplug", "enable Windows hotplug support (Default: false)") orelse false;
     const use_rc = b.option(bool, "use-rc", "use rc version of libusb (Default: false)") orelse false;
 
-    const android_ndk_home: []const u8 =
-        if (builtin.zig_version.minor > 15)
-            b.graph.environ_map.get("ANDROID_NDK_HOME") orelse b.dupe("")
-        else
-            std.process.getEnvVarOwned(b.allocator, "ANDROID_NDK_HOME") catch b.dupe("");
+    const android_ndk_home: []const u8 = b.graph.environ_map.get("ANDROID_NDK_HOME") orelse b.dupe("");
 
     defer b.allocator.free(android_ndk_home);
     const android_ndk_path: []const u8 = b.option([]const u8, "android-ndk-path", "specify path to android ndk (Default: ANDROID_NDK_HOME env var)") orelse android_ndk_home;
@@ -50,7 +46,7 @@ pub fn build(b: *std.Build) !void {
 
     const build_all = b.step("all", "Build libusb for all supported targets");
     for (targets(b)) |t| {
-        const lib = try createLibUsb(b, t, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level, upstream);
+        const lib = try createLibUsb(b, t, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level, upstream, false);
         build_all.dependOn(&lib.step);
         const triple: []const u8 = b.fmt("{s}-{s}-{s}", .{ @tagName(t.result.cpu.arch), @tagName(t.result.os.tag), @tagName(t.result.abi) });
         const dest_dir_path: []const u8 = b.pathJoin(&[_][]const u8{ "lib", triple });
@@ -64,7 +60,7 @@ pub fn build(b: *std.Build) !void {
         build_all.dependOn(&install_artifact.step);
     }
 
-    const libusb = try createLibUsb(b, target, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level, upstream);
+    const libusb = try createLibUsb(b, target, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level, upstream, true);
     b.installArtifact(libusb);
 }
 
@@ -78,6 +74,7 @@ fn createLibUsb(
     android_ndk_path: []const u8,
     android_api_level: []const u8,
     upstream: *std.Build.Dependency,
+    add_module_to_package_set: bool,
 ) !*std.Build.Step.Compile {
     const is_posix: bool =
         target.result.os.tag.isBSD() or
@@ -98,14 +95,22 @@ fn createLibUsb(
         lib.root_module.addCMacro("PIC", "");
     }
 
-    if (builtin.zig_version.minor > 15) {
-        const translate_c = b.addTranslateC(.{
-            .root_source_file = b.addWriteFiles().add("translate_c.h", "#include <libusb.h>"),
-            .target = target,
-            .optimize = optimize,
+    const translate_c_dep = b.dependency("translate_c", .{});
+    const translate_c: @import("translate_c").Translator = .init(translate_c_dep, .{
+        .c_source_file = b.addWriteFiles().add("translate_c.h", "#include <libusb.h>"),
+        .target = target,
+        .optimize = optimize,
+    });
+    translate_c.addIncludePath(upstream.path("libusb"));
+    translate_c.linkLibrary(lib);
+    if (add_module_to_package_set) {
+        const libusb_mod = b.addModule("libusb", .{
+            .root_source_file = translate_c.output_file,
+            .target = translate_c.mod.resolved_target,
+            .optimize = translate_c.mod.optimize,
+            .link_libc = translate_c.mod.link_libc,
         });
-        translate_c.addIncludePath(upstream.path("libusb"));
-        _ = translate_c.addModule("libusb");
+        libusb_mod.linkLibrary(lib);
     }
 
     addCSourceFilesFromDep(lib.root_module, upstream, src);
@@ -115,15 +120,15 @@ fn createLibUsb(
     }
 
     if (target.result.os.tag.isDarwin()) {
-        if (b.lazyDependency("xcode_frameworks", .{})) |dep| {
-            lib.root_module.addSystemFrameworkPath(dep.path("Frameworks"));
-            lib.root_module.addSystemIncludePath(dep.path("include"));
-            lib.root_module.addLibraryPath(dep.path("lib"));
-        }
-        if (b.lazyDependency("system_sdk", .{})) |dep| {
-            lib.root_module.addLibraryPath(dep.path("macos12/usr/lib"));
-            lib.root_module.addFrameworkPath(dep.path("macos12/System/Library/Frameworks"));
-        }
+        const xcode_frameworks_dep = try b.dependencyLazy("xcode_frameworks", .{});
+        lib.root_module.addSystemFrameworkPath(xcode_frameworks_dep.path("Frameworks"));
+        lib.root_module.addSystemIncludePath(xcode_frameworks_dep.path("include"));
+        lib.root_module.addLibraryPath(xcode_frameworks_dep.path("lib"));
+
+        const system_sdk_dep = try b.dependencyLazy("system_sdk", .{});
+        lib.root_module.addLibraryPath(system_sdk_dep.path("macos12/usr/lib"));
+        lib.root_module.addFrameworkPath(system_sdk_dep.path("macos12/System/Library/Frameworks"));
+
         addCSourceFilesFromDep(lib.root_module, upstream, darwin_src);
         lib.root_module.linkFramework("CoreFoundation", .{});
         lib.root_module.linkFramework("IOKit", .{});
@@ -164,12 +169,11 @@ fn createLibUsb(
         lib.root_module.addIncludePath(upstream.path("android"));
     } else {
         const config_h = b.addConfigHeader(.{
-            .style = .{
-                .autoconf_undef = b.path("config.h.in"),
-            },
+            .style = .blank,
+            .include_path = "config.h",
         }, .{
             .DEFAULT_VISIBILITY = .@"__attribute__ ((visibility (\"default\")))",
-            .ENABLE_DEBUG_LOGGING = defineFromBool(optimize == .Debug),
+            .ENABLE_DEBUG_LOGGING = defineFromBool(optimize == .debug),
             .ENABLE_LOGGING = 1,
             .HAVE_ASM_TYPES_H = defineFromBool(target.result.os.tag == .linux),
             .HAVE_CLOCK_GETTIME = defineFromBool(!(target.result.os.tag == .windows)),
@@ -210,8 +214,6 @@ fn createLibUsb(
             .PACKAGE_VERSION = VERSION,
             .PLATFORM_POSIX = defineFromBool(is_posix),
             .PLATFORM_WINDOWS = defineFromBool(target.result.os.tag == .windows),
-            // TODO1: Figure out how to remove the space between "PRINTF_FORMAT" and "(a, b)", then we could just use the next line instead modifying the file beforehand
-            // .PRINTF_FORMAT = .@"(a, b) __attribute__ ((__format__ (__printf__, a, b)))",
             .STDC_HEADERS = 1,
             .UMOCKDEV_HOTPLUG = null,
             .USE_SYSTEM_LOGGING_FACILITY = defineFromBool(is_posix),
@@ -221,6 +223,7 @@ fn createLibUsb(
             .@"inline" = null,
         });
         lib.root_module.addConfigHeader(config_h);
+        config_h.addIdent("PRINTF_FORMAT(a, b)", "__attribute__ ((__format__ (__printf__, a, b)))");
     }
 
     return lib;
@@ -261,7 +264,9 @@ fn setupAndroid(b: *std.Build, lib: *std.Build.Step.Compile, target: std.Build.R
         },
     };
 
-    const android_sysroot: []const u8 = b.pathJoin(&.{ android_ndk_path, "/toolchains/llvm/prebuilt/", host_tuple, "/sysroot" });
+    const android_prebuilt_path: []const u8 = b.pathJoin(&.{ android_ndk_path, "/toolchains/llvm/prebuilt/", host_tuple });
+    const android_bin: []const u8 = b.pathJoin(&.{ android_prebuilt_path, "/bin" });
+    const android_sysroot: []const u8 = b.pathJoin(&.{ android_prebuilt_path, "/sysroot" });
 
     const android_lib_path: []const u8 = b.pathJoin(&.{ android_sysroot, "/usr/lib/", android_triple });
     const android_lib_path_api_specific: []const u8 = b.pathJoin(&.{ android_lib_path, android_api_level });
@@ -286,6 +291,7 @@ fn setupAndroid(b: *std.Build, lib: *std.Build.Step.Compile, target: std.Build.R
     var allocating_writer: std.Io.Writer.Allocating = .init(b.allocator);
     defer allocating_writer.deinit();
     const libc_installation: std.zig.LibCInstallation = .{
+        .cc_dir = android_bin,
         .include_dir = android_include_path,
         .sys_include_dir = android_include_path,
         .crt_dir = android_lib_path_api_specific,

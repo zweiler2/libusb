@@ -2,7 +2,7 @@
     .name = .libusb,
     .version = "1.0.30",
     .fingerprint = 0x3e6dc4ccc24f924d, // Changing this has security and trust implications.
-    .minimum_zig_version = "0.15.2",
+    .minimum_zig_version = "0.17.0",
     .dependencies = .{
         .upstream = .{
             .url = "https://github.com/libusb/libusb/archive/refs/tags/v1.0.30.tar.gz",
@@ -21,6 +21,10 @@
             .url = "git+https://github.com/zig-gamedev/system_sdk.git#777e76828f05d5d223df47a4c0de95ae4efde884",
             .hash = "system_sdk-0.3.0-dev-alwUNqAaaALJ5VoZImZo3n6prezBnQnrpziun3ZeZwcp",
             .lazy = true,
+        },
+        .translate_c = .{
+            .url = "git+https://codeberg.org/ziglang/translate-c#875969d3493e245e01bf5d7860f792d8f3eb9ef5",
+            .hash = "translate_c-0.0.0-Q_BUWoFOBwAhz77Zd15HCVuhTKzdUKc94kezmCeJ7IC_",
         },
     },
     .paths = .{
