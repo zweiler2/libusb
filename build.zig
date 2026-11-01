@@ -44,20 +44,21 @@ pub fn build(b: *std.Build) !void {
         update_config_header.dependOn(&install_file.step);
     }
 
-    const build_all = b.step("all", "Build libusb for all supported targets");
-    for (targets(b)) |t| {
-        const lib = try createLibUsb(b, t, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level, upstream, false);
-        build_all.dependOn(&lib.step);
-        const triple: []const u8 = b.fmt("{s}-{s}-{s}", .{ @tagName(t.result.cpu.arch), @tagName(t.result.os.tag), @tagName(t.result.abi) });
-        const dest_dir_path: []const u8 = b.pathJoin(&[_][]const u8{ "lib", triple });
-        const install_artifact = b.addInstallArtifact(lib, .{
-            .dest_dir = .{ .override = .{ .custom = dest_dir_path } },
-            .implib_dir = if (lib.producesImplib())
-                .{ .override = .{ .custom = dest_dir_path } }
-            else
-                .default,
-        });
-        build_all.dependOn(&install_artifact.step);
+    const build_all = b.option(bool, "all", "Build libusb for all supported targets") orelse false;
+    if (build_all) {
+        for (targets(b)) |t| {
+            const lib = try createLibUsb(b, t, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level, upstream, false);
+            const triple: []const u8 = b.fmt("{s}-{s}-{s}", .{ @tagName(t.result.cpu.arch), @tagName(t.result.os.tag), @tagName(t.result.abi) });
+            const dest_dir_path: []const u8 = b.pathJoin(&[_][]const u8{ "lib", triple });
+            const install_artifact = b.addInstallArtifact(lib, .{
+                .dest_dir = .{ .override = .{ .custom = dest_dir_path } },
+                .implib_dir = if (lib.producesImplib())
+                    .{ .override = .{ .custom = dest_dir_path } }
+                else
+                    .default,
+            });
+            b.getInstallStep().dependOn(&install_artifact.step);
+        }
     }
 
     const libusb = try createLibUsb(b, target, optimize, linkage, system_libudev, windows_hotplug, android_ndk_path, android_api_level, upstream, true);
